@@ -71,7 +71,7 @@ image_height = 64  # Set the desired image height
 image_width = 64  # Set the desired image width
 num_channels = 3  # Set the number of image channels (3 for RGB images)
 
-num_epochs = 1  # Set the number of training epochs
+num_epochs = 10  # Set the number of training epochs
 batch_size = 32  # Set the batch size for training
 
 label_to_index = {}  # Dictionary to map label names to numerical indices
