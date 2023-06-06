@@ -1,70 +1,61 @@
-import os
-import tensorflow as tf
-from tensorflow.python.keras.models import Sequential, load_model
-from tensorflow.python.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
 import cv2
 import numpy as np
-from keras.utils import to_categorical
+from keras.models import load_model
 
-# Step 1: Load the trained model
-model_path = 'model.h5'
-model = load_model(model_path)
+# Step 1: Define functions for image splitting and prediction
 
-# Step 2: Define a function to split an image into a 3x3 grid
 def split_image(image):
+    # Split the image into a 3x3 grid
     height, width, _ = image.shape
-    grid_size = min(height, width) // 3
-    images = []
+    split_height = height // 3
+    split_width = width // 3
+
+    grid = []
     for i in range(3):
         for j in range(3):
-            start_x = j * grid_size
-            end_x = start_x + grid_size
-            start_y = i * grid_size
-            end_y = start_y + grid_size
-            grid_image = image[start_y:end_y, start_x:end_x]
-            images.append(grid_image)
-    return images
+            # Extract the sub-image from the grid cell
+            sub_image = image[i * split_height : (i+1) * split_height, j * split_width : (j+1) * split_width]
+            grid.append(sub_image)
 
-# Step 3: Preprocess and predict on a single image
-image_path = 'Images/Image00003.png'  # Provide the path to your image
-image = cv2.imread(image_path)
+    return grid
 
-# Split the image into a 3x3 grid
-grid_images = split_image(image)
+def preprocess_image(image):
+    # Preprocess the image (resize, normalize, etc.)
+    resized_image = cv2.resize(image, (64, 64))  # Resize image to a fixed size
+    normalized_image = resized_image / 255.0  # Normalize pixel values to the range [0, 1]
+    return normalized_image
 
-# Define class labels (modify according to your model's classes)
-class_labels = ['A', 'Circle', 'Hexagon', 'L', 'P', 'R', 'Square', 'Triangle']
-# Preprocess and predict on each grid image
+# Step 2: Load the pretrained model
+
+model = load_model('model.h5')
+print('Loaded pretrained model')
+
+# Step 3: Predict on new image
+
+new_image_path = 'Images/Image00004.png'
+
+# Load and preprocess the new image
+new_image = cv2.imread(new_image_path)
+grid = split_image(new_image)
+
 predictions = []
-for i, grid_image in enumerate(grid_images):
-    processed_grid_image = cv2.resize(grid_image, (64, 64))  # Resize image to match model input shape
-    processed_grid_image = processed_grid_image / 255.0  # Normalize pixel values to the range [0, 1]
-    processed_grid_image = np.expand_dims(processed_grid_image, axis=0)
-    prediction = model.predict(processed_grid_image)
+for sub_image in grid:
+    processed_sub_image = preprocess_image(sub_image)
+
+    # Expand dimensions to match the input shape of the model
+    processed_sub_image = np.expand_dims(processed_sub_image, axis=0)
+
+    # Predict the label for the sub-image
+    prediction = model.predict(processed_sub_image)
+
+    # Get the predicted class index
     predicted_class_index = np.argmax(prediction)
-    predictions.append(predicted_class_index)
 
-    # Print the prediction for the current box
-    print(f"Box {i+1} prediction: {class_labels[predicted_class_index]}")
+    # Map the predicted class index to the class name
+    predicted_class = [k for k, v in label_to_index.items() if v == predicted_class_index][0]
 
-# Visualize the original image with highlighted recognized parts and labels
-highlighted_image = image.copy()
-grid_size = min(image.shape[:2]) // 3
+    predictions.append(predicted_class)
+
+# Print the predicted labels for each sub-image in the grid
 for i, prediction in enumerate(predictions):
-    row = i // 3
-    col = i % 3
-    start_x = col * grid_size
-    end_x = start_x + grid_size
-    start_y = row * grid_size
-    end_y = start_y + grid_size
-    cv2.rectangle(highlighted_image, (start_x, start_y), (end_x, end_y), (0, 255, 0), 2)
-    label = class_labels[prediction]
-    label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
-    cv2.putText(highlighted_image, label, (start_x, start_y + label_size[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-
-# Display the original image and highlighted regions
-cv2.imshow("Highlighted Image", highlighted_image)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
-
-
+    print(f"Grid cell {i+1} is classified as {prediction}")
